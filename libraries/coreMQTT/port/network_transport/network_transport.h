@@ -55,24 +55,10 @@ struct NetworkContext
     * @brief Disable server name indication (SNI) for a TLS session.
     */
     BaseType_t disableSni;
-};
 
-/**
- * @brief Structure to configure timeouts for individual TLS operations in milliseconds resolution.
- * Note that it uses FreeRTOS software timer internally and hence minimum resolution is the tick duration.
- * These timeouts can be specified before any receive or send operation. Timout of 0 will act as a non-blocking mode.
- *
- * Defaults are:
- * Connection timeout - 4 seconds
- * Send timeout - 10 seconds
- * Receive timeout - 2 seconds
- */
-typedef struct Timeouts
-{
-    uint16_t connectionTimeoutMs;
-    uint16_t sendTimeoutMs;
-    uint16_t recvTimeoutMs;
-} Timeouts_t;
+    // BIOBOT
+    uint32_t timeout;            /**< @brief Timeout for the TLS connection. */
+};
 
 TlsTransportStatus_t xTlsConnect(NetworkContext_t* pxNetworkContext );
 
@@ -83,12 +69,6 @@ int32_t espTlsTransportSend( NetworkContext_t* pxNetworkContext,
 
 int32_t espTlsTransportRecv( NetworkContext_t* pxNetworkContext,
     void* pvData, size_t uxDataLen );
-
-void vTlsSetConnectTimeout( uint16_t connectionTimeoutMs );
-
-void vTlsSetSendTimeout( uint16_t sendTimeoutMs );
-
-void vTlsSetRecvTimeout( uint16_t recvTimeoutMs );
 
 /* *INDENT-OFF* */
 #ifdef __cplusplus
