@@ -3,9 +3,13 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_tls.h"
+#include "esp_err.h"
 #include "network_transport.h"
 #include "sdkconfig.h"
 #include <fcntl.h>
+#include <errno.h>
+#include "lwip/netdb.h"
+#include "lwip/inet.h"
 
 // BIOBOT
 #ifndef TLS_IO_RETRY_DELAY_TICKS
@@ -16,6 +20,70 @@
     #define TLS_IO_RETRY_TIMEOUT_MS     ( 200U )
 #endif
 // END OF BIOBOT
+
+static void logResolvedAddress( const char * hostname, int port )
+{
+    struct addrinfo hints = { 0 };
+    struct addrinfo * result = NULL;
+    char address[ INET6_ADDRSTRLEN ] = { 0 };
+    char service[ 8 ] = { 0 };
+    int dnsResult;
+
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    snprintf( service, sizeof( service ), "%d", port );
+    dnsResult = getaddrinfo( hostname, service, &hints, &result );
+
+    if( ( dnsResult == 0 ) && ( result != NULL ) )
+    {
+        const void * binaryAddress = NULL;
+
+        if( result->ai_family == AF_INET )
+        {
+            binaryAddress = &( ( const struct sockaddr_in * ) result->ai_addr )->sin_addr;
+        }
+        else if( result->ai_family == AF_INET6 )
+        {
+            binaryAddress = &( ( const struct sockaddr_in6 * ) result->ai_addr )->sin6_addr;
+        }
+
+        if( ( binaryAddress != NULL ) &&
+            ( inet_ntop( result->ai_family, binaryAddress, address, sizeof( address ) ) != NULL ) )
+        {
+            ESP_LOGI( "network_transport", "DNS resolved %s to %s", hostname, address );
+        }
+        freeaddrinfo( result );
+    }
+    else
+    {
+        ESP_LOGE( "network_transport", "DNS resolution failed for %s: code=%d", hostname, dnsResult );
+    }
+}
+
+static void logTlsErrors( esp_tls_t * tls )
+{
+    esp_tls_error_handle_t errorHandle = NULL;
+    int systemError = 0;
+    int mbedtlsError = 0;
+    int certFlags = 0;
+    int espError = 0;
+
+    if( esp_tls_get_error_handle( tls, &errorHandle ) != ESP_OK )
+    {
+        ESP_LOGE( "network_transport", "Unable to retrieve ESP-TLS error handle" );
+        return;
+    }
+
+    ( void ) esp_tls_get_and_clear_error_type( errorHandle, ESP_TLS_ERR_TYPE_SYSTEM, &systemError );
+    ( void ) esp_tls_get_and_clear_error_type( errorHandle, ESP_TLS_ERR_TYPE_MBEDTLS, &mbedtlsError );
+    ( void ) esp_tls_get_and_clear_error_type( errorHandle, ESP_TLS_ERR_TYPE_MBEDTLS_CERT_FLAGS, &certFlags );
+    ( void ) esp_tls_get_and_clear_error_type( errorHandle, ESP_TLS_ERR_TYPE_ESP, &espError );
+
+    ESP_LOGE( "network_transport",
+              "TLS connect failed: esp=0x%x (%s), mbedtls=-0x%x, cert_flags=0x%x, errno=%d (%s)",
+              espError, esp_err_to_name( espError ), -mbedtlsError, certFlags,
+              systemError, strerror( systemError ) );
+}
 
 TlsTransportStatus_t xTlsConnect( NetworkContext_t* pxNetworkContext )
 {
@@ -41,11 +109,14 @@ TlsTransportStatus_t xTlsConnect( NetworkContext_t* pxNetworkContext )
     xSemaphoreTake(pxNetworkContext->xTlsContextSemaphore, portMAX_DELAY);
     pxNetworkContext->pxTls = pxTls;
 
+    logResolvedAddress( pxNetworkContext->pcHostname, pxNetworkContext->xPort );
+
     if (esp_tls_conn_new_sync( pxNetworkContext->pcHostname, 
             strlen( pxNetworkContext->pcHostname ), 
             pxNetworkContext->xPort, 
             &xEspTlsConfig, pxTls) <= 0)
     {
+        logTlsErrors( pxNetworkContext->pxTls );
         if (pxNetworkContext->pxTls)
         {
             esp_tls_conn_destroy(pxNetworkContext->pxTls);
