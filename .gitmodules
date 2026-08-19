@@ -1,12 +1,7 @@
 [submodule "libraries/coreMQTT/coreMQTT"]
 	path = libraries/coreMQTT/coreMQTT
-	url = https://github.com/FreeRTOS/coreMQTT.git
-	sbom-version = 2.3.1
-	sbom-license = MIT
-	sbom-supplier = Organization: Amazon Web Services
-	sbom-url = https://github.com/FreeRTOS/coreMQTT
-	sbom-description = Client implementation of the MQTT 3.1.1 specification for embedded devices
-	sbom-hash = 2beef04725328923e05e576b884212d53ec97af7
+	url = https://github.com/biobotiot/coreMQTT.git
+	branch = feature/v.2.3.1-customized
 [submodule "libraries/coreMQTT-Agent/coreMQTT-Agent"]
 	path = libraries/coreMQTT-Agent/coreMQTT-Agent
 	url = https://github.com/FreeRTOS/coreMQTT-Agent.git
